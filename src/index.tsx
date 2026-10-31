@@ -4,6 +4,7 @@ import App from './App'
 import React from 'react'
 import WebFont from 'webfontloader'
 import { createRoot } from 'react-dom/client'
+import { NuqsAdapter } from 'nuqs/adapters/react'
 
 WebFont.load({
     google: {
@@ -33,4 +34,8 @@ if (!container) {
 }
 
 const root = createRoot(container)
-root.render(<App />)
+root.render(
+    <NuqsAdapter>
+        <App />
+    </NuqsAdapter>
+)

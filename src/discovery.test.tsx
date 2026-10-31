@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import App from './App'
 import ProfileFilters from './components/ProfileFilters'
 import { shuffle } from './util/shuffle'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 
 const { profiles, counterMounted } = vi.hoisted(() => ({
     counterMounted: vi.fn(),
@@ -49,6 +50,7 @@ let container: any
 let root: ReturnType<typeof createRoot>
 beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    window.history.replaceState({}, '', '/')
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -59,10 +61,19 @@ afterEach(() => {
     vi.clearAllMocks()
 })
 
-function render(element = <App />) {
-    act(() => root.render(element))
+function render(element = <App />, searchParams = '', onUrlUpdate = vi.fn()) {
+    act(() =>
+        root.render(
+            <NuqsTestingAdapter
+                searchParams={searchParams}
+                hasMemory
+                onUrlUpdate={onUrlUpdate}
+            >
+                {element}
+            </NuqsTestingAdapter>
+        )
+    )
 }
-
 function button(text: string) {
     const found = [...container.querySelectorAll('button')].find(
         (element: Element) => element.textContent.trim() === text
@@ -553,5 +564,88 @@ describe('recruiter discovery', () => {
         expect(
             container.querySelector('#required-skills-options-search').value
         ).toBe('')
+    })
+    test('restores search and filters from URL query parameters', () => {
+        render(
+            <App />,
+            '?q=Developer&country=CA&role=Frontend+Developer&skill=React&sort=name-asc'
+        )
+
+        expect(
+            (
+                container.querySelector(
+                    'input[type="search"]'
+                ) as HTMLInputElement
+            ).value
+        ).toBe('Developer')
+
+        expect(
+            (
+                container.querySelector(
+                    '[aria-label="Sort developers"]'
+                ) as HTMLSelectElement
+            ).value
+        ).toBe('name-asc')
+
+        click(
+            container.querySelector(
+                '[data-filter="country"] button'
+            ) as HTMLElement
+        )
+        expect(checkbox('Canada').checked).toBe(true)
+
+        click(
+            container.querySelector(
+                '[data-filter="role"] button'
+            ) as HTMLElement
+        )
+        expect(checkbox('Frontend Developer').checked).toBe(true)
+
+        click(
+            container.querySelector(
+                '[data-filter="skills"] button'
+            ) as HTMLElement
+        )
+        expect(checkbox('React').checked).toBe(true)
+    })
+    test('updates the URL with push history when a filter changes', async () => {
+        const onUrlUpdate = vi.fn()
+        render(<App />, '', onUrlUpdate)
+
+        click(button('Country'))
+        click(checkbox('Canada'))
+
+        await act(async () => {
+            await vi.waitFor(() => {
+                expect(onUrlUpdate).toHaveBeenCalled()
+            })
+        })
+
+        const update =
+            onUrlUpdate.mock.calls[onUrlUpdate.mock.calls.length - 1][0]
+
+        expect(update.searchParams.getAll('country')).toEqual(['CA'])
+        expect(update.options.history).toBe('push')
+    })
+    test('updates the URL with replace history when search changes', async () => {
+        const onUrlUpdate = vi.fn()
+        render(<App />, '', onUrlUpdate)
+
+        type(
+            container.querySelector('input[type="search"]') as HTMLInputElement,
+            'Developer'
+        )
+
+        await act(async () => {
+            await vi.waitFor(() => {
+                expect(onUrlUpdate).toHaveBeenCalled()
+            })
+        })
+
+        const update =
+            onUrlUpdate.mock.calls[onUrlUpdate.mock.calls.length - 1][0]
+
+        expect(update.searchParams.get('q')).toBe('Developer')
+        expect(update.options.history).toBe('replace')
     })
 })

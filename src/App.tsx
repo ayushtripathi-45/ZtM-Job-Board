@@ -1,4 +1,16 @@
-import React, { useRef, useState, useMemo, lazy, Suspense } from 'react'
+import React, {
+    useRef,
+    useState,
+    useMemo,
+    useEffect,
+    lazy,
+    Suspense,
+} from 'react'
+import { useQueryStates } from 'nuqs'
+import {
+    profileQueryParsers,
+    profileQueryUrlKeys,
+} from './util/profileQueryState'
 import Search from './components/Search'
 import { shuffle } from './util/shuffle'
 import MapSkeleton from './components/MapSkeleton'
@@ -51,7 +63,11 @@ function toggleSelection(current: string[], value: string) {
 
 function App() {
     const profileFiltersRef = useRef<{ clearFilters: () => void } | null>(null)
-    const [criteria, setCriteria] = useState<ProfileCriteria>(emptyCriteria)
+    const [criteria, setCriteria] = useQueryStates(profileQueryParsers, {
+        urlKeys: profileQueryUrlKeys,
+        history: 'replace',
+        clearOnDefault: true,
+    })
     const [batch, setBatch] = useState(1)
     const [people, setPeople] = useState(() => {
         const initialPeople = [...profiles]
@@ -68,14 +84,23 @@ function App() {
     )
 
     // Any change to search, filters, or sort starts pagination over
-    function updateCriteria(update: React.SetStateAction<ProfileCriteria>) {
-        setCriteria(update)
+    function updateCriteria(
+        update: React.SetStateAction<ProfileCriteria>,
+        history: 'push' | 'replace' = 'push'
+    ) {
+        const nextCriteria =
+            typeof update === 'function' ? update(criteria) : update
+
+        void setCriteria(nextCriteria, { history })
         setBatch(1)
     }
 
+    useEffect(() => {
+        setBatch(1)
+    }, [criteria])
     function onSearchChange(event: React.ChangeEvent<HTMLInputElement>) {
         const search = event.target.value
-        updateCriteria((current) => ({ ...current, search }))
+        updateCriteria((current) => ({ ...current, search }), 'replace')
     }
 
     function clearFilters() {
@@ -85,7 +110,7 @@ function App() {
     function goBack() {
         setMap(!map)
         setMapOrHomeTitle(map ? pageNames.map : pageNames.home)
-        updateCriteria((current) => ({ ...current, search: '' }))
+        updateCriteria((current) => ({ ...current, search: '' }), 'replace')
     }
 
     function shufflePeopleOnClick() {

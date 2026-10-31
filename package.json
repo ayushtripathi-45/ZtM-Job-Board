@@ -6,6 +6,7 @@
   "homepage": ".",
   "dependencies": {
     "leaflet": "^1.9.4",
+    "nuqs": "^2.10.2",
     "react": "^19.2.3",
     "react-countup": "^6.5.3",
     "react-dom": "^19.2.3",
